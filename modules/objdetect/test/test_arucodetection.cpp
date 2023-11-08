@@ -5,6 +5,7 @@
 #include "test_precomp.hpp"
 #include "opencv2/objdetect/aruco_detector.hpp"
 #include "opencv2/calib3d.hpp"
+#include <opencv2/highgui.hpp>
 
 namespace opencv_test { namespace {
 
@@ -540,6 +541,22 @@ TEST(CV_ArucoBitCorrection, algorithmic) {
     test.safe_run();
 }
 
+TEST(CV_ArucoDetectMarkers, myDetect)
+{
+    aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
+    vector<int> markerIds;
+    vector<vector<Point2f> > markerCorners;
+    string imgPath = "C:/Users/matve/all/qr-code/python1/failmask5.png";
+    Mat image = imread(imgPath), imageCopy;
+    //medianBlur(image, image, 7);
+    detector.myDetect(image, markerCorners);
+    image.copyTo(imageCopy);
+    aruco::drawDetectedMarkers(imageCopy, markerCorners);
+    resize(imageCopy, imageCopy, Size(), 0.75, 0.75);
+    imshow("!", imageCopy);
+    waitKey(0);
+}
+
 TEST(CV_ArucoDetectMarkers, regression_3192)
 {
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
@@ -700,5 +717,8 @@ INSTANTIATE_TEST_CASE_P(
             aruco::CORNER_REFINE_CONTOUR,
             aruco::CORNER_REFINE_APRILTAG
         ));
+
+
+
 
 }} // namespace

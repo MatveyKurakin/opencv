@@ -275,6 +275,7 @@ public:
     CV_WRAP void detectMarkers(InputArray image, OutputArrayOfArrays corners, OutputArray ids,
                                OutputArrayOfArrays rejectedImgPoints = noArray()) const;
 
+    CV_WRAP void myDetect(InputArray image, OutputArrayOfArrays corners) const;
     /** @brief Refine not detected markers based on the already detected and the board layout
      *
      * @param image input image
