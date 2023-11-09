@@ -421,7 +421,7 @@ static void _detectCandidates(InputArray _grayImage, vector<vector<vector<Point2
                               _params.minMarkerDistanceRate, _params.detectInvertedMarker);
 }
 
-static void _myDetectInitialCandidates(const Mat& grey, vector<vector<Point2f> >& candidates,
+static void _myDetectInitialCandidatesWithBlur(const Mat& grey, vector<vector<Point2f> >& candidates,
     vector<vector<Point> >& contours,
     const DetectorParameters& params) {
 
@@ -489,6 +489,90 @@ static void _myDetectInitialCandidates(const Mat& grey, vector<vector<Point2f> >
     }
 }
 
+static void _myDetectInitialCandidatesWithMorphology(const Mat& grey, vector<vector<Point2f> >& candidates,
+    vector<vector<Point> >& contours,
+    const DetectorParameters& params) {
+
+    CV_Assert(params.adaptiveThreshWinSizeMin >= 3 && params.adaptiveThreshWinSizeMax >= 3);
+    CV_Assert(params.adaptiveThreshWinSizeMax >= params.adaptiveThreshWinSizeMin);
+    CV_Assert(params.adaptiveThreshWinSizeStep > 0);
+
+    // number of window sizes (scales) to apply adaptive thresholding
+    int nScales = (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
+        params.adaptiveThreshWinSizeStep + 1;
+
+    vector<vector<vector<Point2f> > > candidatesArrays((size_t)nScales);
+    vector<vector<vector<Point> > > contoursArrays((size_t)nScales);
+
+    ////for each value in the interval of thresholding window sizes
+    Mat greyPyramid = grey.clone();
+    double depthPyramid = 1.0;
+    Mat greyPyramidMorphology;
+    //Mat kernel = (Mat_<uint8_t>(5, 5) <<
+    //    0, 0, 1, 0, 0,
+    //    0, 0, 1, 0, 0,
+    //    1, 1, 1, 1, 1,
+    //    0, 0, 1, 0, 0,
+    //    0, 0, 1, 0, 0);
+    //Mat kernel = (Mat_<uint8_t>(5, 5) <<
+    //    0, 0, 1, 0, 0,
+    //    0, 1, 1, 1, 0,
+    //    1, 1, 1, 1, 1,
+    //    0, 1, 1, 1, 0,
+    //    0, 0, 1, 0, 0);
+    Mat kernel = (Mat_<uint8_t>(3, 3) <<
+        0, 1, 0,
+        1, 1, 1,
+        0, 1, 0);
+    while (greyPyramid.cols > grey.cols / 8 && greyPyramid.rows > grey.cols / 8) {
+        greyPyramid.copyTo(greyPyramidMorphology);
+        dilate(greyPyramidMorphology, greyPyramidMorphology, kernel);
+        erode(greyPyramidMorphology, greyPyramidMorphology, kernel);
+
+        parallel_for_(Range(0, nScales), [&](const Range& range) {
+            const int begin = range.start;
+            const int end = range.end;
+
+            for (int i = begin; i < end; i++) {
+                int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                // threshold
+                Mat thresh;
+                _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+
+                // detect rectangles
+                _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                    params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                    params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                    params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+            }
+            });
+        // join candidates
+
+        for (int i = 0; i < nScales; i++) {
+            for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
+                vector<Point2f> a(candidatesArrays[i][j].size());
+                vector<Point> b(contoursArrays[i][j].size());
+                for (int l = 0; l < a.size(); l++) {
+                    a[l].x = candidatesArrays[i][j][l].x * depthPyramid;
+                    a[l].y = candidatesArrays[i][j][l].y * depthPyramid;
+                    b[l].x = contoursArrays[i][j][l].x;
+                    b[l].y = contoursArrays[i][j][l].y;
+                }
+                //cnt = candidatesArrays[i].size();
+                candidates.push_back(a);
+                contours.push_back(b);
+            }
+        }
+
+        depthPyramid *= 2.0;
+
+        pyrDown(greyPyramid, greyPyramid, Size(greyPyramid.cols / 2, greyPyramid.rows / 2));
+
+        candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
+        contoursArrays = vector<vector<vector<Point>>>(nScales);
+    }
+}
+
 /**
  * @brief Detect square candidates in the input image
  */
@@ -502,7 +586,8 @@ static void _myDetectCandidates(InputArray _grayImage, vector<vector<vector<Poin
     /// 1. DETECT FIRST SET OF CANDIDATES
     vector<vector<Point2f> > candidates;
     vector<vector<Point> > contours;
-    _myDetectInitialCandidates(grey, candidates, contours, _params);
+    //_myDetectInitialCandidatesWithBlur(grey, candidates, contours, _params);
+    _myDetectInitialCandidatesWithMorphology(grey, candidates, contours, _params);
     /// 2. SORT CORNERS
     _reorderCandidatesCorners(candidates);
 
