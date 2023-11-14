@@ -546,14 +546,15 @@ TEST(CV_ArucoDetectMarkers, myDetect)
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
     vector<int> markerIds;
     vector<vector<Point2f> > markerCorners;
-    string imgPath = "C:/Users/matve/all/qr-code/python1/failmask5.png";
+    string imgPath = "C:/Users/matve/all/qr-code/python1/qr_file.png";
     Mat image = imread(imgPath), imageCopy;
     //medianBlur(image, image, 7);
     detector.myDetect(image, markerCorners);
     image.copyTo(imageCopy);
     aruco::drawDetectedMarkers(imageCopy, markerCorners);
-    resize(imageCopy, imageCopy, Size(), 0.75, 0.75);
-    imshow("!", imageCopy);
+    //resize(imageCopy, imageCopy, Size(), 0.75, 0.75);
+    imwrite("C:/Users/matve/all/qr-code/python1/result_morphology/qr_file_contours.png", imageCopy);
+    //imshow("!", imageCopy);
     waitKey(0);
 }
 

@@ -524,10 +524,60 @@ static void _myDetectInitialCandidatesWithMorphology(const Mat& grey, vector<vec
         0, 1, 0,
         1, 1, 1,
         0, 1, 0);
+    Mat kernel1 = (Mat_<uint8_t>(5, 5) <<
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1);
     while (greyPyramid.cols > grey.cols / 8 && greyPyramid.rows > grey.cols / 8) {
-        greyPyramid.copyTo(greyPyramidMorphology);
+        
+        //morphology close
+        greyPyramidMorphology = greyPyramid.clone();
         dilate(greyPyramidMorphology, greyPyramidMorphology, kernel);
         erode(greyPyramidMorphology, greyPyramidMorphology, kernel);
+
+        parallel_for_(Range(0, nScales), [&](const Range& range) {
+            const int begin = range.start;
+            const int end = range.end;
+
+            for (int i = begin; i < end; i++) {
+                int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                // threshold
+                Mat thresh;
+                _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+
+                // detect rectangles
+                _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                    params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                    params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                    params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+            }
+            });
+        // join candidates
+
+        for (int i = 0; i < nScales; i++) {
+            for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
+                vector<Point2f> a(candidatesArrays[i][j].size());
+                vector<Point> b(contoursArrays[i][j].size());
+                for (int l = 0; l < a.size(); l++) {
+                    a[l].x = candidatesArrays[i][j][l].x * depthPyramid;
+                    a[l].y = candidatesArrays[i][j][l].y * depthPyramid;
+                    b[l].x = contoursArrays[i][j][l].x;
+                    b[l].y = contoursArrays[i][j][l].y;
+                }
+                //cnt = candidatesArrays[i].size();
+                candidates.push_back(a);
+                contours.push_back(b);
+            }
+        }
+        candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
+        contoursArrays = vector<vector<vector<Point>>>(nScales);
+        
+        //morphology open
+        greyPyramidMorphology = greyPyramid.clone();
+        erode(greyPyramidMorphology, greyPyramidMorphology, kernel1);
+        dilate(greyPyramidMorphology, greyPyramidMorphology, kernel1);
 
         parallel_for_(Range(0, nScales), [&](const Range& range) {
             const int begin = range.start;
@@ -571,6 +621,7 @@ static void _myDetectInitialCandidatesWithMorphology(const Mat& grey, vector<vec
         candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
         contoursArrays = vector<vector<vector<Point>>>(nScales);
     }
+    
 }
 
 /**
