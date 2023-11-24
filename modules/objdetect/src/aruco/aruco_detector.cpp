@@ -284,39 +284,168 @@ static void _detectInitialCandidates(const Mat &grey, vector<vector<Point2f> > &
     CV_Assert(params.adaptiveThreshWinSizeMin >= 3 && params.adaptiveThreshWinSizeMax >= 3);
     CV_Assert(params.adaptiveThreshWinSizeMax >= params.adaptiveThreshWinSizeMin);
     CV_Assert(params.adaptiveThreshWinSizeStep > 0);
-
     // number of window sizes (scales) to apply adaptive thresholding
-    int nScales =  (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
-                      params.adaptiveThreshWinSizeStep + 1;
-
-    vector<vector<vector<Point2f> > > candidatesArrays((size_t) nScales);
-    vector<vector<vector<Point> > > contoursArrays((size_t) nScales);
-
+    int nScales = (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
+        params.adaptiveThreshWinSizeStep + 1;
+    //vector<vector<MarkerCandidate>> markerCandidates;
+    //markerCandidates[0][0]
+    vector<vector<vector<Point2f> > > candidatesArrays((size_t)nScales);
+    vector<vector<vector<Point> > > contoursArrays((size_t)nScales);
     ////for each value in the interval of thresholding window sizes
-    parallel_for_(Range(0, nScales), [&](const Range& range) {
-        const int begin = range.start;
-        const int end = range.end;
+    Mat greyPyramid = grey.clone();
+    double depthPyramid = 1.0;
+    Mat greyPyramidMorphology;
+    //Mat kernel = (Mat_<uint8_t>(5, 5) <<
+    //    0, 0, 1, 0, 0,
+    //    0, 0, 1, 0, 0,
+    //    1, 1, 1, 1, 1,
+    //    0, 0, 1, 0, 0,
+    //    0, 0, 1, 0, 0);
+    //Mat kernel = (Mat_<uint8_t>(5, 5) <<
+    //    0, 0, 1, 0, 0,
+    //    0, 1, 1, 1, 0,
+    //    1, 1, 1, 1, 1,
+    //    0, 1, 1, 1, 0,
+    //    0, 0, 1, 0, 0);
+    Mat kernel = (Mat_<uint8_t>(3, 3) <<
+        0, 1, 0,
+        1, 1, 1,
+        0, 1, 0);
+    Mat kernel1 = (Mat_<uint8_t>(5, 5) <<
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1);
+    while (greyPyramid.cols > grey.cols / 8 && greyPyramid.rows > grey.cols / 8) {
 
-        for (int i = begin; i < end; i++) {
-            int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
-            // threshold
-            Mat thresh;
-            _threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
+        //without filter
+        greyPyramidMorphology = greyPyramid.clone();
 
-            // detect rectangles
-            _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
-                                params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
-                                params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
-                                params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+        parallel_for_(Range(0, nScales), [&](const Range& range) {
+            const int begin = range.start;
+            const int end = range.end;
+
+            for (int i = begin; i < end; i++) {
+                int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                // threshold
+                Mat thresh;
+                _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+
+                // detect rectangles
+                _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                    params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                    params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                    params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+            }
+            });
+        // join candidates
+
+        for (int i = 0; i < nScales; i++) {
+            for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
+                vector<Point2f> a(candidatesArrays[i][j].size());
+                vector<Point> b(contoursArrays[i][j].size());
+                for (int l = 0; l < a.size(); l++) {
+                    a[l].x = candidatesArrays[i][j][l].x * depthPyramid;
+                    a[l].y = candidatesArrays[i][j][l].y * depthPyramid;
+                    b[l].x = contoursArrays[i][j][l].x;
+                    b[l].y = contoursArrays[i][j][l].y;
+                }
+                //cnt = candidatesArrays[i].size();
+                candidates.push_back(a);
+                contours.push_back(b);
+            }
         }
-    });
-    // join candidates
-    for(int i = 0; i < nScales; i++) {
-        for(unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
-            candidates.push_back(candidatesArrays[i][j]);
-            contours.push_back(contoursArrays[i][j]);
+        candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
+        contoursArrays = vector<vector<vector<Point>>>(nScales);
+
+        greyPyramid.copyTo(greyPyramidMorphology);
+
+        //morphology close
+        greyPyramidMorphology = greyPyramid.clone();
+        dilate(greyPyramidMorphology, greyPyramidMorphology, kernel);
+        erode(greyPyramidMorphology, greyPyramidMorphology, kernel);
+
+        parallel_for_(Range(0, nScales), [&](const Range& range) {
+            const int begin = range.start;
+            const int end = range.end;
+            for (int i = begin; i < end; i++) {
+                int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                // threshold
+                Mat thresh;
+                _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+                // detect rectangles
+                _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                    params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                    params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                    params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+            }
+            });
+        // join candidates
+
+        for (int i = 0; i < nScales; i++) {
+            for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
+                vector<Point2f> a(candidatesArrays[i][j].size());
+                vector<Point> b(contoursArrays[i][j].size());
+                for (int l = 0; l < a.size(); l++) {
+                    a[l].x = candidatesArrays[i][j][l].x * depthPyramid;
+                    a[l].y = candidatesArrays[i][j][l].y * depthPyramid;
+                    b[l].x = contoursArrays[i][j][l].x;
+                    b[l].y = contoursArrays[i][j][l].y;
+                }
+                //cnt = candidatesArrays[i].size();
+                candidates.push_back(a);
+                contours.push_back(b);
+            }
         }
+        candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
+        contoursArrays = vector<vector<vector<Point>>>(nScales);
+
+        //morphology open
+        greyPyramidMorphology = greyPyramid.clone();
+        erode(greyPyramidMorphology, greyPyramidMorphology, kernel1);
+        dilate(greyPyramidMorphology, greyPyramidMorphology, kernel1);
+
+        parallel_for_(Range(0, nScales), [&](const Range& range) {
+            const int begin = range.start;
+            const int end = range.end;
+
+            for (int i = begin; i < end; i++) {
+                int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                // threshold
+                Mat thresh;
+                _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+
+                // detect rectangles
+                _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                    params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                    params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                    params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+            }
+            });
+        // join candidates
+
+        for (int i = 0; i < nScales; i++) {
+            for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
+                vector<Point2f> a(candidatesArrays[i][j].size());
+                vector<Point> b(contoursArrays[i][j].size());
+                for (int l = 0; l < a.size(); l++) {
+                    a[l].x = candidatesArrays[i][j][l].x * depthPyramid;
+                    a[l].y = candidatesArrays[i][j][l].y * depthPyramid;
+                    b[l].x = contoursArrays[i][j][l].x;
+                    b[l].y = contoursArrays[i][j][l].y;
+                }
+                //cnt = candidatesArrays[i].size();
+                candidates.push_back(a);
+                contours.push_back(b);
+            }
+        }
+        depthPyramid *= 2.0;
+        pyrDown(greyPyramid, greyPyramid, Size(greyPyramid.cols / 2, greyPyramid.rows / 2));
+        candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
+        contoursArrays = vector<vector<vector<Point>>>(nScales);
     }
+
 }
 
 
@@ -663,8 +792,14 @@ struct ArucoDetector::ArucoDetectorImpl {
     void detectCandidates(const Mat& grey, vector<vector<Point2f> >& candidates, vector<vector<Point> >& contours) {
         /// 1. DETECT FIRST SET OF CANDIDATES
         _detectInitialCandidates(grey, candidates, contours, detectorParams);
+
+        ///1.5 Refines the corners locations
+        //TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 1000, 0.001);
+        //cornerSubPix(grey, candidates, Size(100, 100), Size(-1, -1), criteria);
         /// 2. SORT CORNERS
         _reorderCandidatesCorners(candidates);
+
+
     }
 
     /**
@@ -942,6 +1077,7 @@ void ArucoDetector::detectMarkers(InputArray _image, OutputArrayOfArrays _corner
     else {
         arucoDetectorImpl->detectCandidates(grey, candidates, contours);
     }
+
 
      /// STEP 2.c FILTER OUT NEAR CANDIDATE PAIRS
     auto selectedCandidates = arucoDetectorImpl->filterTooCloseCandidates(candidates, contours);
