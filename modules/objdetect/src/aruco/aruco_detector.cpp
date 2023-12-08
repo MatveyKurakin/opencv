@@ -198,9 +198,10 @@ namespace cv {
         /**
           * @brief Assure order of candidate corners is clockwise direction
           */
-        static void _reorderCandidatesCorners(vector<Point2f> & candidates) {
+        static void _reorderCandidatesCorners(vector<Point2f>& candidates) {
 
-            double dx1 = candidates[1].x - candidates[0].x;
+            //for (unsigned int i = 0; i < candidates.size(); i++) {
+                double dx1 = candidates[1].x - candidates[0].x;
                 double dy1 = candidates[1].y - candidates[0].y;
                 double dx2 = candidates[2].x - candidates[0].x;
                 double dy2 = candidates[2].y - candidates[0].y;
@@ -209,8 +210,8 @@ namespace cv {
                 if (crossProduct < 0.0) { // not clockwise direction
                     swap(candidates[1], candidates[3]);
                 }
+            //}
         }
-
 
         static float getAverageModuleSize(const vector<Point2f>& markerCorners, int markerSize, int markerBorderBits) {
             float averageArucoModuleSize = 0.f;
@@ -231,12 +232,12 @@ namespace cv {
             vector<Point2f> corners;
             vector<Point> contour;
             float perimeter = 0.f;
+            int level = 0;
         };
 
         struct MarkerCandidateTree : MarkerCandidate {
             int parent = -1;
             int depth = 0;
-            int pyramidLevel = 0;
 
             vector<MarkerCandidate> closeContours;
 
@@ -253,7 +254,6 @@ namespace cv {
 
             bool operator<(const MarkerCandidateTree& m) const {
                 // sorting the contors in descending order
-                // if (depth != m.depth) return depth < m.depth;
                 return perimeter > m.perimeter;
             }
         };
@@ -279,21 +279,47 @@ namespace cv {
         /**
          * @brief Initial steps on finding square candidates
          */
-        static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree>& candidatesTree, 
+        static void _detectInitialCandidates(const Mat& grey, MarkerCandidateTree& markerTree,
             const DetectorParameters& params, int depth) {
 
             CV_Assert(params.adaptiveThreshWinSizeMin >= 3 && params.adaptiveThreshWinSizeMax >= 3);
             CV_Assert(params.adaptiveThreshWinSizeMax >= params.adaptiveThreshWinSizeMin);
             CV_Assert(params.adaptiveThreshWinSizeStep > 0);
-
             // number of window sizes (scales) to apply adaptive thresholding
             int nScales = (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
                 params.adaptiveThreshWinSizeStep + 1;
-
+            //vector<vector<MarkerCandidate>> markerCandidates;
+            //markerCandidates[0][0]
             vector<vector<vector<Point2f> > > candidatesArrays((size_t)nScales);
             vector<vector<vector<Point> > > contoursArrays((size_t)nScales);
-
             ////for each value in the interval of thresholding window sizes
+            Mat greyPyramid = grey.clone();
+            Mat greyPyramidMorphology;
+            //Mat kernel = (Mat_<uint8_t>(5, 5) <<
+            //    0, 0, 1, 0, 0,
+            //    0, 0, 1, 0, 0,
+            //    1, 1, 1, 1, 1,
+            //    0, 0, 1, 0, 0,
+            //    0, 0, 1, 0, 0);
+            //Mat kernel = (Mat_<uint8_t>(5, 5) <<
+            //    0, 0, 1, 0, 0,
+            //    0, 1, 1, 1, 0,
+            //    1, 1, 1, 1, 1,
+            //    0, 1, 1, 1, 0,
+            //    0, 0, 1, 0, 0);
+            Mat kernel = (Mat_<uint8_t>(3, 3) <<
+                0, 1, 0,
+                1, 1, 1,
+                0, 1, 0);
+            Mat kernel1 = (Mat_<uint8_t>(5, 5) <<
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1);
+            //without filter
+            greyPyramidMorphology = greyPyramid.clone();
+
             parallel_for_(Range(0, nScales), [&](const Range& range) {
                 const int begin = range.start;
                 const int end = range.end;
@@ -302,7 +328,51 @@ namespace cv {
                     int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
                     // threshold
                     Mat thresh;
-                    _threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
+                    _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+
+                    // detect rectangles
+                    _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                        params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                        params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                        params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+                }
+                });
+
+            //morphology close
+            greyPyramidMorphology = greyPyramid.clone();
+            dilate(greyPyramidMorphology, greyPyramidMorphology, kernel);
+            erode(greyPyramidMorphology, greyPyramidMorphology, kernel);
+
+            parallel_for_(Range(0, nScales), [&](const Range& range) {
+                const int begin = range.start;
+                const int end = range.end;
+                for (int i = begin; i < end; i++) {
+                    int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                    // threshold
+                    Mat thresh;
+                    _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+                    // detect rectangles
+                    _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                        params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                        params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                        params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+                }
+                });
+
+            //morphology open
+            greyPyramidMorphology = greyPyramid.clone();
+            erode(greyPyramidMorphology, greyPyramidMorphology, kernel1);
+            dilate(greyPyramidMorphology, greyPyramidMorphology, kernel1);
+
+            parallel_for_(Range(0, nScales), [&](const Range& range) {
+                const int begin = range.start;
+                const int end = range.end;
+
+                for (int i = begin; i < end; i++) {
+                    int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                    // threshold
+                    Mat thresh;
+                    _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
 
                     // detect rectangles
                     _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
@@ -312,17 +382,29 @@ namespace cv {
                 }
                 });
             // join candidates
+
             for (int i = 0; i < nScales; i++) {
                 for (unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
-                    for (int l = 0; l < candidatesArrays[i][j].size(); l++) {
-                        candidatesArrays[i][j][l].x *= (1 << depth);
-                        candidatesArrays[i][j][l].y *= (1 << depth);
+                    vector<Point2f> a(candidatesArrays[i][j].size());
+                    vector<Point> b(contoursArrays[i][j].size());
+                    for (int l = 0; l < a.size(); l++) {
+                        a[l].x = candidatesArrays[i][j][l].x * (1 << depth);
+                        a[l].y = candidatesArrays[i][j][l].y * (1 << depth);
+                        b[l].x = contoursArrays[i][j][l].x;
+                        b[l].y = contoursArrays[i][j][l].y;
                     }
-                    MarkerCandidateTree newCandidateTree = MarkerCandidateTree(std::move(candidatesArrays[i][j]), std::move(contoursArrays[i][j]));
-                    newCandidateTree.depth = depth;
-                    candidatesTree.push_back(newCandidateTree);
+                    //cnt = candidatesArrays[i].size();
+                    MarkerCandidate newMarker;
+                    newMarker.corners = a;
+                    newMarker.contour = b;
+                    newMarker.level = depth;
+                    markerTree.closeContours.push_back(newMarker);
                 }
             }
+            candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
+            contoursArrays = vector<vector<vector<Point>>>(nScales);
+
+
         }
 
 
@@ -666,15 +748,16 @@ namespace cv {
             /**
              * @brief Detect square candidates in the input image
              */
-            void detectCandidates(const Mat& grey, vector<MarkerCandidateTree>& candidateTree, int depth){ //vector<vector<Point2f> >& candidates, vector<vector<Point> >& contours) {
+            void detectCandidates(const Mat& grey, MarkerCandidateTree& markerTree, int depth) {
                 /// 1. DETECT FIRST SET OF CANDIDATES
-                _detectInitialCandidates(grey, candidateTree, detectorParams, depth);
+                _detectInitialCandidates(grey, markerTree, detectorParams, depth);
+
+                ///1.5 Refines the corners locations
+                //TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 1000, 0.001);
+                //cornerSubPix(grey, candidates, Size(100, 100), Size(-1, -1), criteria);
                 /// 2. SORT CORNERS
-                for (int i = 0; i < candidateTree.size(); i++) {
-                    _reorderCandidatesCorners(candidateTree[i].corners);
-                    //for (int j = 0; j < candidateTree[i].closeContours.size(); j++) {
-                    //    _reorderCandidatesCorners(candidateTree[i].closeContours[j].corners);
-                    //}
+                for (int i = 0; i < markerTree.closeContours.size(); i++) {
+                    _reorderCandidatesCorners(markerTree.closeContours[i].corners);
                 }
             }
 
@@ -685,14 +768,20 @@ namespace cv {
              * clear candidates and contours
              */
             vector<MarkerCandidateTree>
-                filterTooCloseCandidates(vector<MarkerCandidateTree>& candidates) {
+                filterTooCloseCandidates(MarkerCandidateTree& markerTree) {
                 CV_Assert(detectorParams.minMarkerDistanceRate >= 0.);
-                vector<MarkerCandidateTree> candidateTree = candidates;
-                //for (size_t i = 0ull; i < candidates.size(); i++) {
-                //    candidateTree[i] = MarkerCandidateTree(std::move(candidates[i]), std::move(contours[i]));
-                //}
-                //candidates.clear();
-                //contours.clear();
+                vector<vector<Point2f>> candidates(markerTree.closeContours.size());
+                vector<vector<Point>> contours(markerTree.closeContours.size());
+                for (int i = 0; i < candidates.size(); i++) {
+                    candidates[i] = markerTree.closeContours[i].corners;
+                }
+                vector<MarkerCandidateTree> candidateTree(candidates.size());
+                for (size_t i = 0ull; i < candidates.size(); i++) {
+                    candidateTree[i] = MarkerCandidateTree(std::move(candidates[i]), std::move(contours[i]));
+                    candidateTree[i].level = markerTree.closeContours[i].level;
+                }
+                candidates.clear();
+                contours.clear();
 
                 // sort candidates from big to small
                 std::sort(candidateTree.begin(), candidateTree.end());
@@ -738,12 +827,24 @@ namespace cv {
                 }
 
                 for (vector<size_t>& grouped : groupedCandidates) {
-                    if (detectorParams.detectInvertedMarker) // if detectInvertedMarker choose smallest contours
+                    if (detectorParams.detectInvertedMarker) { // if detectInvertedMarker choose smallest contours
                         std::sort(grouped.begin(), grouped.end(), [](const size_t& a, const size_t& b) {
-                        return a > b;
+                            return a > b;
                             });
-                    else // if detectInvertedMarker==false choose largest contours
+                        std::sort(grouped.begin(), grouped.end(), [&candidateTree](const size_t& a, const size_t& b) {
+                            if (candidateTree[a].level != candidateTree[b].level)
+                                return candidateTree[a].level < candidateTree[b].level; // ?????????
+                            return a > b;
+                            });
+                    }
+                    else { // if detectInvertedMarker==false choose largest contours
                         std::sort(grouped.begin(), grouped.end());
+                        std::sort(grouped.begin(), grouped.end(), [&candidateTree](const size_t& a, const size_t& b) {
+                            if (candidateTree[a].level != candidateTree[b].level)
+                                return candidateTree[a].level < candidateTree[b].level; // ?????????
+                            return a < b;
+                            });
+                    }
                     size_t currId = grouped[0];
                     isSelectedContours[currId] = true;
                     for (size_t i = 1ull; i < grouped.size(); i++) {
@@ -945,7 +1046,7 @@ namespace cv {
             vector<vector<Point> > contours;
             vector<int> ids;
 
-            vector<MarkerCandidateTree> candidatesTree;
+            MarkerCandidateTree markerTree;
 
             /// STEP 2.a Detect marker candidates :: using AprilTag
             if (detectorParams.cornerRefinementMethod == (int)CORNER_REFINE_APRILTAG) {
@@ -953,18 +1054,18 @@ namespace cv {
             }
             /// STEP 2.b Detect marker candidates :: traditional way
             else {
-                Mat myGreyPyramid = grey.clone();
+                Mat greyPyramid = grey.clone();
                 int depth = 0;
-                while (myGreyPyramid.cols > 0 && myGreyPyramid.rows > 0) {
-                    arucoDetectorImpl->detectCandidates(myGreyPyramid, candidatesTree, depth);
-                    pyrDown(myGreyPyramid, myGreyPyramid, Size(myGreyPyramid.cols / 2, myGreyPyramid.rows / 2));
-                    depth += 1;
-                    break;
+                while (greyPyramid.cols > grey.cols / 8 && greyPyramid.rows > grey.rows / 8) {
+                    arucoDetectorImpl->detectCandidates(greyPyramid, markerTree, depth);
+                    depth++;
+                    pyrDown(greyPyramid, greyPyramid, Size(greyPyramid.cols / 2, greyPyramid.rows / 2));
                 }
             }
 
+
             /// STEP 2.c FILTER OUT NEAR CANDIDATE PAIRS
-            auto selectedCandidates = arucoDetectorImpl->filterTooCloseCandidates(candidatesTree);
+            auto selectedCandidates = arucoDetectorImpl->filterTooCloseCandidates(markerTree);
 
             /// STEP 2: Check candidate codification (identify markers)
             arucoDetectorImpl->identifyCandidates(grey, grey_pyramid, selectedCandidates, candidates, contours,

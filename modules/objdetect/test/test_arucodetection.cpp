@@ -540,6 +540,22 @@ TEST(CV_ArucoBitCorrection, algorithmic) {
     test.safe_run();
 }
 
+//TEST(CV_ArucoDetectMarkers, myDetect)
+//{
+//    aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
+//    vector<int> markerIds;
+//    vector<vector<Point2f> > markerCorners;
+//    string imgPath = "C:\\Users\\matve\\all\\qr-code\\python1\\check_filters\\regression_2492.png";
+//    Mat image = imread(imgPath);
+//    imshow("1", image);
+//    waitKey();
+//    detector.detectMarkers(image, markerCorners, markerIds);
+//    Mat img = image.clone();
+//    aruco::drawDetectedMarkers(img, markerCorners, Scalar(255, 0, 0));
+//    imshow("1", img);
+//    waitKey();
+//}
+
 TEST(CV_ArucoDetectMarkers, regression_3192)
 {
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
