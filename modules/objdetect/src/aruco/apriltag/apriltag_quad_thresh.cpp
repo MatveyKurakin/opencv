@@ -1656,10 +1656,9 @@ void _apriltag(Mat im_orig, const DetectorParameters & _params, std::vector<std:
         corners.push_back(Point2f(quad->p[0][0], quad->p[0][1]));   //pB
         corners.push_back(Point2f(quad->p[1][0], quad->p[1][1]));   //pC
         corners.push_back(Point2f(quad->p[2][0], quad->p[2][1]));   //pD
-
         candidates.push_back(corners);
     }
-
+    
     _zarray_destroy(quads);
 }
 

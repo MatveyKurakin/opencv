@@ -201,15 +201,15 @@ namespace cv {
         static void _reorderCandidatesCorners(vector<Point2f>& candidates) {
 
             //for (unsigned int i = 0; i < candidates.size(); i++) {
-                double dx1 = candidates[1].x - candidates[0].x;
-                double dy1 = candidates[1].y - candidates[0].y;
-                double dx2 = candidates[2].x - candidates[0].x;
-                double dy2 = candidates[2].y - candidates[0].y;
-                double crossProduct = (dx1 * dy2) - (dy1 * dx2);
+            double dx1 = candidates[1].x - candidates[0].x;
+            double dy1 = candidates[1].y - candidates[0].y;
+            double dx2 = candidates[2].x - candidates[0].x;
+            double dy2 = candidates[2].y - candidates[0].y;
+            double crossProduct = (dx1 * dy2) - (dy1 * dx2);
 
-                if (crossProduct < 0.0) { // not clockwise direction
-                    swap(candidates[1], candidates[3]);
-                }
+            if (crossProduct < 0.0) { // not clockwise direction
+                swap(candidates[1], candidates[3]);
+            }
             //}
         }
 
@@ -279,7 +279,7 @@ namespace cv {
         /**
          * @brief Initial steps on finding square candidates
          */
-        static void _detectInitialCandidates(const Mat& grey, MarkerCandidateTree& markerTree,
+        static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree>& markerTree,
             const DetectorParameters& params, int depth) {
 
             CV_Assert(params.adaptiveThreshWinSizeMin >= 3 && params.adaptiveThreshWinSizeMax >= 3);
@@ -394,11 +394,11 @@ namespace cv {
                         b[l].y = contoursArrays[i][j][l].y;
                     }
                     //cnt = candidatesArrays[i].size();
-                    MarkerCandidate newMarker;
-                    newMarker.corners = a;
-                    newMarker.contour = b;
-                    newMarker.level = depth;
-                    markerTree.closeContours.push_back(newMarker);
+                    MarkerCandidateTree newMarkerTree;
+                    newMarkerTree.corners = a;
+                    newMarkerTree.contour = b;
+                    newMarkerTree.level = depth;
+                    markerTree.push_back(newMarkerTree);
                 }
             }
             candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
@@ -748,7 +748,7 @@ namespace cv {
             /**
              * @brief Detect square candidates in the input image
              */
-            void detectCandidates(const Mat& grey, MarkerCandidateTree& markerTree, int depth) {
+            void detectCandidates(const Mat& grey, vector<MarkerCandidateTree>& markerTree, int depth) {
                 /// 1. DETECT FIRST SET OF CANDIDATES
                 _detectInitialCandidates(grey, markerTree, detectorParams, depth);
 
@@ -756,8 +756,8 @@ namespace cv {
                 //TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 1000, 0.001);
                 //cornerSubPix(grey, candidates, Size(100, 100), Size(-1, -1), criteria);
                 /// 2. SORT CORNERS
-                for (int i = 0; i < markerTree.closeContours.size(); i++) {
-                    _reorderCandidatesCorners(markerTree.closeContours[i].corners);
+                for (int i = 0; i < markerTree.size(); i++) {
+                    _reorderCandidatesCorners(markerTree[i].corners);
                 }
             }
 
@@ -768,20 +768,23 @@ namespace cv {
              * clear candidates and contours
              */
             vector<MarkerCandidateTree>
-                filterTooCloseCandidates(MarkerCandidateTree& markerTree) {
+                filterTooCloseCandidates(vector<MarkerCandidateTree>& markerTree) {
                 CV_Assert(detectorParams.minMarkerDistanceRate >= 0.);
-                vector<vector<Point2f>> candidates(markerTree.closeContours.size());
-                vector<vector<Point>> contours(markerTree.closeContours.size());
+                vector<vector<Point2f>> candidates(markerTree.size());
+                vector<vector<Point>> contours(markerTree.size());
                 for (int i = 0; i < candidates.size(); i++) {
-                    candidates[i] = markerTree.closeContours[i].corners;
+                    candidates[i] = markerTree[i].corners;
+                    contours[i] = markerTree[i].contour;
                 }
                 vector<MarkerCandidateTree> candidateTree(candidates.size());
                 for (size_t i = 0ull; i < candidates.size(); i++) {
                     candidateTree[i] = MarkerCandidateTree(std::move(candidates[i]), std::move(contours[i]));
-                    candidateTree[i].level = markerTree.closeContours[i].level;
+                    candidateTree[i].level = markerTree[i].level;
                 }
                 candidates.clear();
                 contours.clear();
+
+                markerTree.clear();
 
                 // sort candidates from big to small
                 std::sort(candidateTree.begin(), candidateTree.end());
@@ -1046,7 +1049,7 @@ namespace cv {
             vector<vector<Point> > contours;
             vector<int> ids;
 
-            MarkerCandidateTree markerTree;
+            vector<MarkerCandidateTree> markerTree;//vector
 
             /// STEP 2.a Detect marker candidates :: using AprilTag
             if (detectorParams.cornerRefinementMethod == (int)CORNER_REFINE_APRILTAG) {
