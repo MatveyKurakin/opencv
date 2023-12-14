@@ -540,22 +540,6 @@ TEST(CV_ArucoBitCorrection, algorithmic) {
     test.safe_run();
 }
 
-//TEST(CV_ArucoDetectMarkers, myDetect)
-//{
-//    aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
-//    vector<int> markerIds;
-//    vector<vector<Point2f> > markerCorners;
-//    string imgPath = "C:\\Users\\matve\\all\\qr-code\\python1\\check_filters\\regression_2492.png";
-//    Mat image = imread(imgPath);
-//    imshow("1", image);
-//    waitKey();
-//    detector.detectMarkers(image, markerCorners, markerIds);
-//    Mat img = image.clone();
-//    aruco::drawDetectedMarkers(img, markerCorners, Scalar(255, 0, 0));
-//    imshow("1", img);
-//    waitKey();
-//}
-
 TEST(CV_ArucoDetectMarkers, regression_3192)
 {
     aruco::ArucoDetector detector(aruco::getPredefinedDictionary(aruco::DICT_4X4_50));
@@ -607,11 +591,7 @@ TEST(CV_ArucoDetectMarkers, regression_2492)
         mapGoldCorners[goldCornersIds[i]].push_back(goldCorners[i]);
 
     detector.detectMarkers(image, markerCorners, markerIds);
-    Mat checkImage;
-    image.copyTo(checkImage);
-    aruco::drawDetectedMarkers(checkImage, markerCorners, markerIds, Scalar(255, 0, 0));
-    //imshow("1", checkImage);
-    //waitKey();
+
     ASSERT_EQ(N, markerIds.size());
     for (size_t i = 0; i < N; i++)
     {
@@ -627,8 +607,7 @@ TEST(CV_ArucoDetectMarkers, regression_2492)
                 dist += abs(mapGoldCorners[arucoId][k][j * 2] - markerCorners[i][j].x);
                 dist += abs(mapGoldCorners[arucoId][k][j * 2 + 1] - markerCorners[i][j].y);
             }
-            //totalDist = min(totalDist, dist);
-            totalDist = dist;
+            totalDist = min(totalDist, dist);
         }
         EXPECT_LT(totalDist, 8.f);
     }
