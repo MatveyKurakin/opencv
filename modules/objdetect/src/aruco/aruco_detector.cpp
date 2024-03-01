@@ -232,7 +232,6 @@ struct MarkerCandidate {
 struct MarkerCandidateTree : MarkerCandidate{
     int parent = -1;
     int depth = 0;
-    int level = 0;
     vector<MarkerCandidate> closeContours;
 
     MarkerCandidateTree() {}
@@ -274,12 +273,8 @@ float static inline getAverageDistance(const std::vector<Point2f>& marker1, cons
  * @brief Initial steps on finding square candidates
  */
 static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree>& markerTree,
-<<<<<<< HEAD
                                      const DetectorParameters& params, int depth) {	
 
-=======
-    const DetectorParameters& params, int depth) {													
->>>>>>> 40638f653d154a4950a7d15bdb4adf92f0a7699c
     CV_Assert(params.adaptiveThreshWinSizeMin >= 3 && params.adaptiveThreshWinSizeMax >= 3);
     CV_Assert(params.adaptiveThreshWinSizeMax >= params.adaptiveThreshWinSizeMin);
     CV_Assert(params.adaptiveThreshWinSizeStep > 0);
@@ -290,23 +285,6 @@ static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree
     vector<vector<vector<Point2f> > > candidatesArrays((size_t) nScales);
     vector<vector<vector<Point> > > contoursArrays((size_t) nScales);
 
-    Mat greyPyramid = grey.clone();
-    Mat greyPyramidMorphology;
-
-    Mat kernel = (Mat_<uint8_t>(3, 3) <<
-        0, 1, 0,
-        1, 1, 1,
-        0, 1, 0);
-    Mat kernel1 = (Mat_<uint8_t>(5, 5) <<
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1);
-
-    //without filter
-    greyPyramidMorphology = greyPyramid.clone();
-
     ////for each value in the interval of thresholding window sizes
     parallel_for_(Range(0, nScales), [&](const Range& range) {
         const int begin = range.start;
@@ -316,7 +294,7 @@ static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree
             int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
             // threshold
             Mat thresh;
-            _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
+            _threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
 
             // detect rectangles
             _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
@@ -325,51 +303,6 @@ static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree
                                 params.minDistanceToBorder, params.minSideLengthCanonicalImg);
         }
     });
-
-    //morphology close
-    greyPyramidMorphology = greyPyramid.clone();
-    dilate(greyPyramidMorphology, greyPyramidMorphology, kernel);
-    erode(greyPyramidMorphology, greyPyramidMorphology, kernel);
-
-    parallel_for_(Range(0, nScales), [&](const Range& range) {
-        const int begin = range.start;
-        const int end = range.end;
-        for (int i = begin; i < end; i++) {
-            int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
-            // threshold
-            Mat thresh;
-            _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
-            // detect rectangles
-            _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
-                params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
-                params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
-                params.minDistanceToBorder, params.minSideLengthCanonicalImg);
-        }
-        });
-
-    //morphology open
-    greyPyramidMorphology = greyPyramid.clone();
-    erode(greyPyramidMorphology, greyPyramidMorphology, kernel1);
-    dilate(greyPyramidMorphology, greyPyramidMorphology, kernel1);
-
-    parallel_for_(Range(0, nScales), [&](const Range& range) {
-        const int begin = range.start;
-        const int end = range.end;
-
-        for (int i = begin; i < end; i++) {
-            int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
-            // threshold
-            Mat thresh;
-            _threshold(greyPyramidMorphology, thresh, currScale, params.adaptiveThreshConstant);
-
-            // detect rectangles
-            _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
-                params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
-                params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
-                params.minDistanceToBorder, params.minSideLengthCanonicalImg);
-        }
-        });
-
     // join candidates
     for(int i = 0; i < nScales; i++) {
         for(unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
@@ -388,13 +321,8 @@ static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree
             markerTree.push_back(newMarkerTree);
         }
     }
-<<<<<<< HEAD
     // candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
     // contoursArrays = vector<vector<vector<Point>>>(nScales);
-=======
-    candidatesArrays = vector<vector<vector<Point2f>>>(nScales);
-    contoursArrays = vector<vector<vector<Point>>>(nScales);
->>>>>>> 40638f653d154a4950a7d15bdb4adf92f0a7699c
 }
 
 
@@ -815,7 +743,6 @@ struct ArucoDetector::ArucoDetectorImpl {
         }
 
         for (vector<size_t>& grouped : groupedCandidates) {
-<<<<<<< HEAD
             if (detectorParams.detectInvertedMarker) {// if detectInvertedMarker choose smallest contours
                 std::stable_sort(grouped.begin(), grouped.end(), [&candidateTree](const size_t &a, const size_t &b) {
                     if (candidateTree[a].level != candidateTree[b].level)
@@ -829,26 +756,6 @@ struct ArucoDetector::ArucoDetectorImpl {
                         return candidateTree[a].level < candidateTree[b].level;
                     return a < b;
                 });
-=======
-            if (detectorParams.detectInvertedMarker){ // if detectInvertedMarker choose smallest contours
-                std::sort(grouped.begin(), grouped.end(), [](const size_t &a, const size_t &b) {
-                    return a > b;
-                });
-                std::sort(grouped.begin(), grouped.end(), [&candidateTree](const size_t &a, const size_t &b) {
-                    if (candidateTree[a].level != candidateTree[b].level)
-                        return candidateTree[a].level < candidateTree[b].level; // ?????????
-                    return a > b;
-                });
-            }
-            else{ // if detectInvertedMarker==false choose largest contours
-                std::sort(grouped.begin(), grouped.end());
-                std::sort(grouped.begin(), grouped.end(), [&candidateTree](const size_t &a, const size_t &b) {
-                    if (candidateTree[a].level != candidateTree[b].level)
-                        return candidateTree[a].level < candidateTree[b].level; // ?????????
-                    return a < b;
-                });
-            }
->>>>>>> 40638f653d154a4950a7d15bdb4adf92f0a7699c
             size_t currId = grouped[0];
             isSelectedContours[currId] = true;
             for (size_t i = 1ull; i < grouped.size(); i++) {
@@ -1051,17 +958,12 @@ void ArucoDetector::detectMarkers(InputArray _image, OutputArrayOfArrays _corner
     vector<int> ids;
 
     vector<MarkerCandidateTree> markerTree;
-<<<<<<< HEAD
-=======
-
->>>>>>> 40638f653d154a4950a7d15bdb4adf92f0a7699c
     /// STEP 2.a Detect marker candidates :: using AprilTag
     if(detectorParams.cornerRefinementMethod == (int)CORNER_REFINE_APRILTAG){
         _apriltag(grey, detectorParams, candidates, contours);
     }
     /// STEP 2.b Detect marker candidates :: traditional way
     else {
-<<<<<<< HEAD
         arucoDetectorImpl->detectCandidates(grey, markerTree, 0);
         Mat greyPyramid = grey;
         int depth = 0;
@@ -1073,14 +975,6 @@ void ArucoDetector::detectMarkers(InputArray _image, OutputArrayOfArrays _corner
             depth++;
             arucoDetectorImpl->detectCandidates(res, markerTree, depth);
             greyPyramid = res;
-=======
-        Mat greyPyramid = grey.clone();
-        int depth = 0;
-        while (greyPyramid.cols > 20 && greyPyramid.rows > 20) {
-            arucoDetectorImpl->detectCandidates(greyPyramid, markerTree, depth);
-            depth++;
-            pyrDown(greyPyramid, greyPyramid, Size(greyPyramid.cols / 2, greyPyramid.rows / 2));
->>>>>>> 40638f653d154a4950a7d15bdb4adf92f0a7699c
         }
     }
 
