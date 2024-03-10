@@ -279,30 +279,42 @@ static void _detectInitialCandidates(const Mat& grey, vector<MarkerCandidateTree
     CV_Assert(params.adaptiveThreshWinSizeMax >= params.adaptiveThreshWinSizeMin);
     CV_Assert(params.adaptiveThreshWinSizeStep > 0);
     // number of window sizes (scales) to apply adaptive thresholding
-    int nScales =  (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
-                      params.adaptiveThreshWinSizeStep + 1;
+    int nScales = 1;// (params.adaptiveThreshWinSizeMax - params.adaptiveThreshWinSizeMin) /
+                    //  params.adaptiveThreshWinSizeStep + 1;
 
     vector<vector<vector<Point2f> > > candidatesArrays((size_t) nScales);
     vector<vector<vector<Point> > > contoursArrays((size_t) nScales);
+    //if(depth>1){
+    //    Mat thresh;
+    //    double maxValue = 255;
+    //    
+    //    ////for each value in the interval of thresholding window sizes
+    //    _threshold(grey, thresh, 255, THRESH_OTSU);
+    //    _findMarkerContours(thresh, candidatesArrays[0], contoursArrays[0],
+    //        params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+    //        params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+    //        params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+    //    //cv::threshold(grey, grey, thresh, maxValue, THRESH_OTSU);
+    //}
+    //else {
+        parallel_for_(Range(0, nScales), [&](const Range& range) {
+            const int begin = range.start;
+            const int end = range.end;
 
-    ////for each value in the interval of thresholding window sizes
-    parallel_for_(Range(0, nScales), [&](const Range& range) {
-        const int begin = range.start;
-        const int end = range.end;
+            for (int i = begin; i < end; i++) {
+                int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
+                // threshold
+                Mat thresh;
+                _threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
 
-        for (int i = begin; i < end; i++) {
-            int currScale = params.adaptiveThreshWinSizeMin + i * params.adaptiveThreshWinSizeStep;
-            // threshold
-            Mat thresh;
-            _threshold(grey, thresh, currScale, params.adaptiveThreshConstant);
-
-            // detect rectangles
-            _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
-                                params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
-                                params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
-                                params.minDistanceToBorder, params.minSideLengthCanonicalImg);
-        }
-    });
+                // detect rectangles
+                _findMarkerContours(thresh, candidatesArrays[i], contoursArrays[i],
+                    params.minMarkerPerimeterRate, params.maxMarkerPerimeterRate,
+                    params.polygonalApproxAccuracyRate, params.minCornerDistanceRate,
+                    params.minDistanceToBorder, params.minSideLengthCanonicalImg);
+            }
+            });
+    //}
     // join candidates
     for(int i = 0; i < nScales; i++) {
         for(unsigned int j = 0; j < candidatesArrays[i].size(); j++) {
@@ -968,7 +980,7 @@ void ArucoDetector::detectMarkers(InputArray _image, OutputArrayOfArrays _corner
         Mat greyPyramid = grey;
         int depth = 0;
         int min_size = min(grey.cols, grey.rows);
-        while (min_size >> depth > 400 && depth < 2) {
+        while (min_size >> depth > 400 && depth < 0) {
             Mat res;
             pyrDown(greyPyramid, res);
             //resize(grey, greyPyramid, Size(), 0.5, 0.5);
