@@ -2992,7 +2992,7 @@ std::string ImplContour::decode(InputArray in, InputArray points, OutputArray st
 
     Size my_temporary_size(cvRound(max_x), cvRound(max_y));
     Mat my_alignmentMarkerMatWithHomography;
-    warpPerspective(my_resizedAlignmentMarker, my_alignmentMarkerMatWithHomography, H, my_temporary_size, INTER_NEAREST);
+    warpPerspective(my_resizedAlignmentMarker, my_alignmentMarkerMatWithHomography, H, my_temporary_size, INTER_NEAREST, BORDER_CONSTANT, 255);
 
     Mat my_inarr = inarr.clone();
     for (int i = 0; i < src_points.size(); i++) {
