@@ -10,6 +10,7 @@
 #include "opencv2/calib3d.hpp"
 #include <opencv2/core/utils/logger.hpp>
 #include "graphical_code_detector_impl.hpp"
+#include <opencv2/highgui.hpp>
 
 #ifdef HAVE_QUIRC
 #include "quirc.h"
@@ -2432,7 +2433,7 @@ bool QRDecode::updatePerspective(const Mat& H)
         return false;
     homography = H;
     Mat temp_intermediate;
-    const Size temporary_size(cvRound(test_perspective_size), cvRound(test_perspective_size));
+    const Size temporary_size(cvRound(test_perspective_size), cvRound(test_perspective_size));    
     warpPerspective(bin_barcode, temp_intermediate, H, temporary_size, INTER_NEAREST);
     no_border_intermediate = temp_intermediate(Range(1, temp_intermediate.rows), Range(1, temp_intermediate.cols));
 
@@ -2952,6 +2953,117 @@ std::string ImplContour::decode(InputArray in, InputArray points, OutputArray st
     QRDecode qrdec(useAlignmentMarkers);
     qrdec.init(inarr, src_points);
     bool ok = qrdec.straightDecodingProcess();
+
+    float minNorm = getMinSideLen(src_points);
+
+    uint8_t my_alignmentMarker[25] = {
+                0, 0,   0,   0,   0,
+                0, 255, 255, 255, 0,
+                0, 255, 0,   255, 0,
+                0, 255, 255, 255, 0,
+                0, 0,   0,   0,   0
+    };
+    Mat my_alignmentMarkerMat(5, 5, CV_8UC1, my_alignmentMarker);
+    Mat my_resizedAlignmentMarker;
+    resize(my_alignmentMarkerMat, my_resizedAlignmentMarker,
+        Size(cvRound(minNorm), cvRound(minNorm)), 0, 0, INTER_AREA);
+
+    vector<Point2f> my_src_points = src_points;
+    float min_y = inarr.size().height;
+    float min_x = inarr.size().width;
+    float max_y = 0;
+    float max_x = 0;
+    for (int i = 0; i < src_points.size(); i++) {//нахожу минимум по каждой координате
+        min_x = min(min_x, src_points[i].x);
+        min_y = min(min_y, src_points[i].y);
+    }
+    for (int i = 0; i < src_points.size(); i++) {//уменьшаю каждую координату на минимум и нахожу максимальную
+        my_src_points[i].x -= min_x;//смещаю qr по координатам
+        my_src_points[i].y -= min_y;
+        max_x = max(max_x, my_src_points[i].x);//получаю размер для искаженного паттерна
+        max_y = max(max_y, my_src_points[i].y);
+    }
+
+    vector<Point2f> perspective_points = { {0.f, 0.f}, {minNorm, 0.f},
+                                              {minNorm, minNorm},
+                                              {0.f, minNorm} };
+
+    Mat H = findHomography(perspective_points, my_src_points);
+
+    Size my_temporary_size(cvRound(max_x), cvRound(max_y));
+    Mat my_alignmentMarkerMatWithHomography;
+    warpPerspective(my_resizedAlignmentMarker, my_alignmentMarkerMatWithHomography, H, my_temporary_size, INTER_NEAREST);
+
+    Mat my_inarr = inarr.clone();
+    for (int i = 0; i < src_points.size(); i++) {
+        drawMarker(my_inarr, src_points[i], (0, 0, 0));
+    }
+    
+    imshow("1", my_resizedAlignmentMarker);
+    imshow("2", my_alignmentMarkerMatWithHomography);
+    imshow("3", my_inarr);
+    waitKey(0);
+
+   
+    /*float my_test_perspective_size = 0.1 * max(getMinSideLen(src_points) + 1.f, 251.f);
+    vector<Point2f> perspective_points = { {0.f, 0.f}, {my_test_perspective_size, 0.f},
+                                              {my_test_perspective_size, my_test_perspective_size},
+                                              {0.f, my_test_perspective_size} };
+
+    Mat H = findHomography(perspective_points, src_points);
+
+    uint8_t my_alignmentMarker[25] = {
+                0, 0,   0,   0,   0,
+                0, 255, 255, 255, 0,
+                0, 255, 0,   255, 0,
+                0, 255, 255, 255, 0,
+                0, 0,   0,   0,   0
+        };
+    Mat my_alignmentMarkerMat(5, 5, CV_8UC1, my_alignmentMarker);
+    float my_module_size = my_test_perspective_size / qrdec.my_version_size;
+    Mat my_resizedAlignmentMarker;
+    resize(my_alignmentMarkerMat, my_resizedAlignmentMarker,
+        Size(cvRound(my_module_size * 5.f), cvRound(my_module_size * 5.f)), 0, 0, INTER_AREA);
+
+    my_test_perspective_size = 0.1 * max(getMinSideLen(perspective_points) + 1.f, 251.f);
+    Size my_temporary_size(cvRound(my_test_perspective_size), cvRound(my_test_perspective_size));
+    Mat my_alignmentMarkerMatWithHomography;
+    warpPerspective(my_resizedAlignmentMarker, my_alignmentMarkerMatWithHomography, H, my_temporary_size* 50, INTER_NEAREST);
+
+    imshow("1", my_resizedAlignmentMarker);
+    imshow("2", my_alignmentMarkerMatWithHomography);
+
+    вопросы: не знаю какого размера сделать полученный паттерн который уже под наклоном
+    изза сильных поворотов теряется четкость паттерна, не знаю что с ним делать
+
+    Objdetect_QRCode
+    Objdetect_QRCode.regression
+      Objdetect_QRCode_Close.regression
+    
+     --gtest_filter=Objdetect_QRCode*
+    --gtest_filter=Objdetect_QRCode_Monitor*
+
+
+
+    Mat subImage = inarr.clone();
+    Mat resTemplate;
+    matchTemplate(subImage, my_alignmentMarkerMatWithHomography, resTemplate, TM_CCOEFF_NORMED);
+    double minVal = 0., maxVal = 0.;
+    Point minLoc, maxLoc, matchLoc;
+    minMaxLoc(resTemplate, &minVal, &maxVal, &minLoc, &maxLoc);
+    //CV_LOG_DEBUG(NULL, "Alignment maxVal: " << maxVal);
+    if (maxVal > 0.65) {
+        const float templateOffset = static_cast<float>(resizedAlignmentMarker.size().width) / 2.f;
+        Point2f alignmentCoord(Point2f(maxLoc.x + left_top_x + templateOffset, maxLoc.y + left_top_y + templateOffset));
+        alignment_coords.push_back(alignmentCoord);
+        perspectiveTransform(alignment_coords, alignment_coords, homography.inv());
+        CV_LOG_DEBUG(NULL, "Alignment coords: " << alignment_coords);
+        const float relativePosX = (alignmentPos.first + 0.5f) / version_size;
+        const float relativePosY = (alignmentPos.second + 0.5f) / version_size;
+        perspective_points.push_back({ relativePosX * test_perspective_size, relativePosY * test_perspective_size });
+        object_points.push_back(alignment_coords.back());
+    }*/
+    
 
     std::string decoded_info = qrdec.getDecodeInformation();
     if (!ok && straight_qrcode.needed())
@@ -3987,10 +4099,10 @@ bool ImplContour::detectMulti(InputArray in, OutputArray points) const {
         points.release();
         return false;
     }
-    vector<vector<Point2f> > pnts2f = qrdet.getTransformationPoints();
-    for(size_t i = 0; i < pnts2f.size(); i++)
-        for(size_t j = 0; j < pnts2f[i].size(); j++)
-            result.push_back(pnts2f[i][j]);
+    //vector<vector<Point2f> > pnts2f = qrdet.getTransformationPoints();
+    //for(size_t i = 0; i < pnts2f.size(); i++)
+    //    for(size_t j = 0; j < pnts2f[i].size(); j++)
+    //        result.push_back(pnts2f[i][j]);
     if (result.size() >= 4) {
         updatePointsResult(points, result);
         return true;
@@ -4616,6 +4728,35 @@ struct PimplQRAruco : public ImplContour {
     QRCodeDetectorAruco::Params qrParams;
     aruco::ArucoDetector arucoDetector;
 
+    std::string myDecode(InputArray img, InputArray points, OutputArray straight_qrcode) {
+        Mat inarr;
+        if (!checkQRInputImage(img, inarr))
+            return std::string();
+        vector<Point2f> src_points;
+        points.copyTo(src_points);
+        CV_Assert(src_points.size() == 4);
+        CV_CheckGT(contourArea(src_points), 0.0, "Invalid QR code source points");
+
+        QRDecode qrdec(useAlignmentMarkers);
+        qrdec.init(inarr, src_points);
+        bool ok = qrdec.straightDecodingProcess();
+
+        std::string decoded_info = qrdec.getDecodeInformation();
+        if (!ok && straight_qrcode.needed())
+        {
+            straight_qrcode.release();
+        }
+        else if (straight_qrcode.needed())
+        {
+            qrdec.getStraightBarcode().convertTo(straight_qrcode, CV_8UC1);
+        }
+        if (ok && !decoded_info.empty()) {
+            alignmentMarkers = { qrdec.alignment_coords };
+            updateQrCorners = qrdec.getOriginalPoints();
+        }
+        return ok ? decoded_info : std::string();
+    }
+
     PimplQRAruco() {
         Mat bits = Mat::ones(Size(5, 5), CV_8UC1);
         Mat(bits, Rect(1, 1, 3, 3)).setTo(Scalar(0));
@@ -4701,6 +4842,11 @@ const aruco::DetectorParameters& QRCodeDetectorAruco::getArucoParameters() const
 
 void QRCodeDetectorAruco::setArucoParameters(const aruco::DetectorParameters& params) {
     std::dynamic_pointer_cast<PimplQRAruco>(p)->arucoDetector.setDetectorParameters(params);
+}
+
+std::string QRCodeDetectorAruco::my_decode(InputArray img, InputArray points, OutputArray straight_code) {
+    std::dynamic_pointer_cast<PimplQRAruco>(p)->myDecode(img, points, straight_code);
+    return std::string();
 }
 
 }  // namespace

@@ -812,6 +812,8 @@ class CV_EXPORTS_W_SIMPLE QRCodeDetectorAruco : public GraphicalCodeDetector {
 public:
     CV_WRAP QRCodeDetectorAruco();
 
+    CV_WRAP std::string my_decode(InputArray img, InputArray points, OutputArray straight_code = noArray());
+
     struct CV_EXPORTS_W_SIMPLE Params {
         CV_WRAP Params();
 
