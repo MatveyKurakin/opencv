@@ -3232,8 +3232,13 @@ std::string ImplContour::myDetectAndDecode(InputArray in, OutputArray points_, O
 
     Rect roi(posX[1], posY[1], posX[2]- posX[1], posY[2]- posY[1]);
     my_alignmentMarkerMatWithHomography = my_alignmentMarkerMatWithHomography(roi);
+    float minNorm1 = minNorm;
+    for (int i = 0; i < corners_marker.size(); i++) {
+        minNorm1 = min(minNorm, getMinSideLen(corners_marker[i]));
+    }
+    int cnt = (int)(minNorm / (minNorm1/7));
     resize(my_alignmentMarkerMatWithHomography, my_alignmentMarkerMatWithHomography,
-        Size(cvRound(my_alignmentMarkerMatWithHomography.cols / 29 * 5), cvRound(my_alignmentMarkerMatWithHomography.rows / 29 * 5)), 0, 0, INTER_AREA);
+        Size(cvRound(my_alignmentMarkerMatWithHomography.cols / cnt * 5), cvRound(my_alignmentMarkerMatWithHomography.rows / cnt * 5)), 0, 0, INTER_AREA);
 
     Mat resTemplate;
     matchTemplate(my_inarr, my_alignmentMarkerMatWithHomography, resTemplate, TM_CCOEFF_NORMED);
