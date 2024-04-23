@@ -163,6 +163,7 @@ public:
     bool detect(InputArray img, OutputArray points) const CV_OVERRIDE;
     string decode(InputArray img, InputArray points, OutputArray straight_code) const CV_OVERRIDE;
     string detectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const CV_OVERRIDE;
+    string myDetectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const CV_OVERRIDE;
     bool detectMulti(InputArray img, OutputArray points) const CV_OVERRIDE;
     bool decodeMulti(InputArray img, InputArray points, vector<string>& decoded_info, OutputArrayOfArrays straight_code) const CV_OVERRIDE;
     bool detectAndDecodeMulti(InputArray img, vector<string>& decoded_info, OutputArray points, OutputArrayOfArrays straight_code) const CV_OVERRIDE;
@@ -298,6 +299,20 @@ string BarcodeImpl::decode(InputArray img, InputArray points, OutputArray straig
 }
 
 string BarcodeImpl::detectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const
+{
+    CV_UNUSED(straight_code);
+    vector<string> decoded_info;
+    vector<string> decoded_type;
+    vector<Point2f> points_;
+    if (!detectAndDecodeWithType(img, decoded_info, decoded_type, points_))
+        return string();
+    if (points_.size() < 4 || decoded_info.size() < 1)
+        return string();
+    points_.resize(4);
+    updatePointsResult(points, points_);
+    return decoded_info[0];
+}
+string BarcodeImpl::myDetectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const
 {
     CV_UNUSED(straight_code);
     vector<string> decoded_info;

@@ -45,6 +45,9 @@ public:
     CV_WRAP std::string detectAndDecode(InputArray img, OutputArray points = noArray(),
                                         OutputArray straight_code = noArray()) const;
 
+    CV_WRAP std::string myDetectAndDecode(InputArray img, OutputArray points = noArray(),
+                                        OutputArray straight_code = noArray()) const;
+
 
     /** @brief Detects graphical codes in image and returns the vector of the quadrangles containing the codes.
      @param img grayscale or color (BGR) image containing (or not) graphical codes.

@@ -240,18 +240,20 @@ TEST(Objdetect_QRCode_Multi, generate_test_data)
 typedef testing::TestWithParam< std::string > Objdetect_QRCode;
 TEST_P(Objdetect_QRCode, regression)
 {
-    const std::string name_current_image = GetParam();
+    const std::string name_current_image = "version_3_down.jpg";
+    //const std::string name_current_image = GetParam();
     const std::string root = "qrcode/";
     const int pixels_error = 3;
 
     std::string image_path = findDataFile(root + name_current_image);
     Mat src = imread(image_path, IMREAD_GRAYSCALE), straight_barcode;
+    //imwrite("C:\\Users\\matve\\all\\qr-code\\1.jpg", src);
     ASSERT_FALSE(src.empty()) << "Can't read image: " << image_path;
 
     std::vector<Point> corners;
     std::string decoded_info;
     QRCodeDetector qrcode;
-    decoded_info = qrcode.detectAndDecode(src, corners, straight_barcode);
+    decoded_info = qrcode.myDetectAndDecode(src, corners, straight_barcode);
     ASSERT_FALSE(corners.empty());
     ASSERT_FALSE(decoded_info.empty());
     int expected_barcode_type = CV_8UC1;
