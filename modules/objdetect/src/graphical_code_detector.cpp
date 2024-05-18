@@ -24,10 +24,6 @@ std::string GraphicalCodeDetector::detectAndDecode(InputArray img, OutputArray p
     CV_Assert(p);
     return p->detectAndDecode(img, points, straight_code);
 }
-std::string GraphicalCodeDetector::myDetectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const {
-    CV_Assert(p);
-    return p->myDetectAndDecode(img, points, straight_code);
-}
 
 bool GraphicalCodeDetector::detectMulti(InputArray img, OutputArray points) const {
     CV_Assert(p);

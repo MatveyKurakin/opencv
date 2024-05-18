@@ -13,7 +13,6 @@ struct GraphicalCodeDetector::Impl {
     virtual bool detect(InputArray img, OutputArray points) const = 0;
     virtual std::string decode(InputArray img, InputArray points, OutputArray straight_code) const = 0;
     virtual std::string detectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const = 0;
-    virtual std::string myDetectAndDecode(InputArray img, OutputArray points, OutputArray straight_code) const = 0;
     virtual bool detectMulti(InputArray img, OutputArray points) const = 0;
     virtual bool decodeMulti(InputArray img, InputArray points, std::vector<std::string>& decoded_info,
                              OutputArrayOfArrays straight_code) const = 0;

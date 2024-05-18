@@ -816,7 +816,7 @@ public:
 
     struct CV_EXPORTS_W_SIMPLE Params {
         CV_WRAP Params();
-
+        CV_PROP_RW std::vector<std::vector<cv::Point2f>> patterns;
         /** @brief The minimum allowed pixel size of a QR module in the smallest image in the image pyramid, default 4.f */
         CV_PROP_RW float minModuleSizeInPyramid;
 
