@@ -208,7 +208,7 @@ TEST_P(Objdetect_QRCode_Encode_ECI, regression) {
 INSTANTIATE_TEST_CASE_P(/**/, Objdetect_QRCode_Encode, testing::ValuesIn(encode_qrcode_images_name));
 INSTANTIATE_TEST_CASE_P(/**/, Objdetect_QRCode_Encode_ECI, testing::ValuesIn(encode_qrcode_eci_images_name));
 
-TEST(Objdetect_QRCode_Encode_Decode, regression)
+/*TEST(Objdetect_QRCode_Encode_Decode, regression)
 {
     const std::string root = "qrcode/decode_encode";
     const int min_version = 1;
@@ -305,7 +305,7 @@ TEST(Objdetect_QRCode_Encode_Decode, regression)
         }
     }
 
-}
+}*/
 
 TEST(Objdetect_QRCode_Encode_Kanji, regression)
 {

@@ -812,9 +812,11 @@ class CV_EXPORTS_W_SIMPLE QRCodeDetectorAruco : public GraphicalCodeDetector {
 public:
     CV_WRAP QRCodeDetectorAruco();
 
+    CV_WRAP std::string my_decode(InputArray img, InputArray points, OutputArray straight_code = noArray());
+
     struct CV_EXPORTS_W_SIMPLE Params {
         CV_WRAP Params();
-
+        CV_PROP_RW std::vector<std::vector<cv::Point2f>> patterns;
         /** @brief The minimum allowed pixel size of a QR module in the smallest image in the image pyramid, default 4.f */
         CV_PROP_RW float minModuleSizeInPyramid;
 

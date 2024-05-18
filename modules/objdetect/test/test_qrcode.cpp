@@ -222,7 +222,6 @@ TEST(Objdetect_QRCode_Multi, generate_test_data)
         file_config << "]";
         file_config << "info";
         file_config << "[:";
-
         for(size_t j = 0; j < decoded_info.size(); j++)
         {
             file_config << decoded_info[j];
@@ -234,8 +233,23 @@ TEST(Objdetect_QRCode_Multi, generate_test_data)
     file_config << "]";
     file_config.release();
 }
-
 #else
+TEST(My_Objdetect_QRCode, test1)
+{
+    //const std::string root = "qrcode/multiple/9_qrcodes.jpg";
+    const std::string root = "qrcode/version_5_right.jpg";//version_4_top;version_4_right;version_4_up;version_4_left
+    const int pixels_error = 3;
+
+    std::string image_path = findDataFile(root);
+    Mat src = imread(image_path, IMREAD_GRAYSCALE), straight_barcode;
+    ASSERT_FALSE(src.empty()) << "Can't read image: " << image_path;
+
+    QRCodeDetectorAruco qrcode = QRCodeDetectorAruco();
+    std::vector<Point2f> corners;
+    qrcode.detectMulti(src, corners);
+    qrcode.my_decode(src, corners, straight_barcode);
+}
+
 
 typedef testing::TestWithParam< std::string > Objdetect_QRCode;
 TEST_P(Objdetect_QRCode, regression)
@@ -246,6 +260,7 @@ TEST_P(Objdetect_QRCode, regression)
 
     std::string image_path = findDataFile(root + name_current_image);
     Mat src = imread(image_path, IMREAD_GRAYSCALE), straight_barcode;
+    //imwrite("C:\\Users\\matve\\all\\qr-code\\1.jpg", src);
     ASSERT_FALSE(src.empty()) << "Can't read image: " << image_path;
 
     std::vector<Point> corners;
